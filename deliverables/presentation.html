@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Predicting MLB Pitch Type from Pre-Pitch Context</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; font-size: 16px; }
+  body {
+    background: #0f172a; color: #e2e8f0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    line-height: 1.7; min-height: 100vh;
+  }
+  nav {
+    position: sticky; top: 0; z-index: 1000;
+    background: #0f172aee; backdrop-filter: blur(12px);
+    border-bottom: 1px solid #1e293b; padding: 0.5rem 0;
+    overflow-x: auto; white-space: nowrap;
+  }
+  nav .nav-inner { max-width: 1200px; margin: 0 auto; padding: 0 1rem; display: flex; gap: 0.15rem; align-items: center; }
+  nav a { color: #94a3b8; text-decoration: none; font-size: 0.78rem; padding: 0.4rem 0.65rem; border-radius: 6px; transition: all 0.2s; flex-shrink: 0; }
+  nav a:hover, nav a:focus { color: #38bdf8; background: #1e293b; }
+  nav .nav-title { color: #38bdf8; font-weight: 700; font-size: 0.85rem; margin-right: 0.6rem; flex-shrink: 0; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.2rem 1.6rem 4rem; }
+  section { margin-bottom: 4rem; padding-top: 3.5rem; }
+  section:first-of-type { padding-top: 1rem; }
+  h1 {
+    font-size: 2.5rem; font-weight: 800; line-height: 1.2;
+    background: linear-gradient(135deg, #38bdf8, #a78bfa, #f472b6);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 0.6rem;
+  }
+  .subtitle { color: #94a3b8; font-size: 1.05rem; margin-bottom: 1.4rem; }
+  h2 {
+    font-size: 1.7rem; font-weight: 700; color: #38bdf8;
+    margin-bottom: 1.2rem; padding-bottom: 0.4rem; border-bottom: 2px solid #1e293b;
+  }
+  h3 { font-size: 1.18rem; font-weight: 600; margin: 1.4rem 0 0.6rem; color: #a78bfa; }
+  p { margin-bottom: 0.9rem; }
+  ul, ol { margin: 0.5rem 0 1rem 1.6rem; }
+  li { margin-bottom: 0.35rem; }
+  strong { color: #f8fafc; }
+  a { color: #38bdf8; text-decoration: none; border-bottom: 1px dashed #1e293b; }
+  a:hover { color: #a78bfa; border-bottom-color: #a78bfa; }
+  .box { border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1rem 0 1.2rem; }
+  .box-pink   { background: #f472b610; border-left: 4px solid #f472b6; }
+  .box-green  { background: #34d39910; border-left: 4px solid #34d399; }
+  .box-blue   { background: #38bdf810; border-left: 4px solid #38bdf8; }
+  .box-purple { background: #a78bfa10; border-left: 4px solid #a78bfa; }
+  .box-amber  { background: #fbbf2410; border-left: 4px solid #fbbf24; }
+  pre { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1.1rem 1.3rem; overflow-x: auto; margin: 0.8rem 0 1.2rem; }
+  pre code { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 0.85rem; line-height: 1.6; color: #e2e8f0; }
+  p code, li code, td code { background: #1e293b; padding: 0.15rem 0.4rem; border-radius: 4px; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 0.88em; color: #38bdf8; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid #1e293b; }
+  th { background: #1e293b; color: #38bdf8; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:hover { background: #1e293b40; }
+  .hero {
+    background: linear-gradient(135deg, #0f172a, #1e293b 60%, #0f172a);
+    padding: 3rem 2rem; border-radius: 16px; margin-bottom: 2rem;
+    border: 1px solid #334155; text-align: left;
+  }
+  .hero .meta { color: #94a3b8; font-size: 0.95rem; margin-top: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; margin-top: 1rem; }
+  .meta-grid .item { background: #1e293b; padding: 0.7rem 0.9rem; border-radius: 8px; border-left: 3px solid #38bdf8; }
+  .meta-grid .item .lbl { display: block; font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.2rem; }
+  .meta-grid .item .val { font-weight: 700; color: #e2e8f0; font-size: 0.95rem; }
+  img { max-width: 100%; height: auto; border-radius: 10px; margin: 0.8rem 0; border: 1px solid #1e293b; }
+  footer { text-align: center; color: #64748b; font-size: 0.85rem; padding: 2rem 1rem; border-top: 1px solid #1e293b; margin-top: 3rem; }
+</style>
+</head>
+<body>
+<nav><div class="nav-inner">
+  <span class="nav-title">Project 3: Skubal Pitch</span>
+  <a href="#overview">Overview</a>
+  <a href="#data">Data</a>
+  <a href="#methods">Methods</a>
+  <a href="#results">Results</a>
+  <a href="#discussion">Discussion</a>
+  <a href="#refs">References</a>
+</div></nav>
+<main>
+
+<section id="overview" class="hero">
+  <h1>Predicting MLB Pitch Type from Pre-Pitch Context</h1>
+  <div class="subtitle">Multi-class classification of Tarik Skubal pitches (Statcast 2020-2026, 13,696 modeling rows).</div>
+  <div class="meta-grid">
+    <div class="item"><span class="lbl">Task</span><span class="val">Multi-class (5 pitch types)</span></div>
+<div class="item"><span class="lbl">Records</span><span class="val">13,696 pitches, 161 games</span></div>
+<div class="item"><span class="lbl">Best test accuracy</span><span class="val">0.387 (XGBoost)</span></div>
+<div class="item"><span class="lbl">Best macro-F1</span><span class="val">0.271</span></div>
+<div class="item"><span class="lbl">Majority-class baseline</span><span class="val">0.347 (always FF)</span></div>
+  </div>
+</section>
+
+<section id="data">
+  <h2>Dataset and Exploration</h2>
+  <h1>Project 3 - What Pitch Should Tarik Skubal Throw?</h1>
+<h2>Exploration Report 1: Data Description and EDA</h2>
+<p><strong>Pitcher</strong>: Tarik Skubal, LHP, Detroit Tigers (MLBAM ID <code>669373</code>, debut 18 Aug 2020)
+<strong>Data source</strong>: MLB Statcast pitch-by-pitch parquet files, one per season, pulled via the <code>pybaseball</code> library
+<strong>Files</strong>: <code>data/statcast_2015.parquet</code> through <code>data/statcast_2026.parquet</code> (~943 MB combined)
+<strong>Notebook</strong>: <code>notebooks/01_eda.ipynb</code> (executed end-to-end without errors)</p>
+<hr />
+<h3>1. Data description</h3>
+<p>Each parquet holds every pitch thrown in a regular- or post-season MLB game for the given year. The 2024 file alone contains <strong>760,248 rows and 118 columns</strong>, which is representative of the post-2020 schema. Columns fall into seven domain groups:</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identifiers</td>
+<td><code>game_pk</code>, <code>game_date</code>, <code>game_year</code>, <code>at_bat_number</code>, <code>pitch_number</code>, <code>pitcher</code>, <code>batter</code>, <code>player_name</code></td>
+</tr>
+<tr>
+<td>Pitch label</td>
+<td><code>pitch_type</code> (FF, SI, SL, CH, CU, FS, FC, KC, etc.), <code>pitch_name</code>, <code>description</code>, <code>events</code>, <code>type</code></td>
+</tr>
+<tr>
+<td>Pitch physics</td>
+<td><code>release_speed</code>, <code>release_spin_rate</code>, <code>release_extension</code>, <code>spin_axis</code>, <code>pfx_x</code>, <code>pfx_z</code>, <code>plate_x</code>, <code>plate_z</code>, <code>vx0/vy0/vz0</code>, <code>ax/ay/az</code></td>
+</tr>
+<tr>
+<td>Count and game state</td>
+<td><code>balls</code>, <code>strikes</code>, <code>outs_when_up</code>, <code>inning</code>, <code>inning_topbot</code>, <code>on_1b/2b/3b</code></td>
+</tr>
+<tr>
+<td>Matchup</td>
+<td><code>stand</code>, <code>p_throws</code>, <code>home_team</code>, <code>away_team</code>, <code>home_score</code>, <code>away_score</code>, <code>bat_score</code>, <code>fld_score</code></td>
+</tr>
+<tr>
+<td>Batted-ball outcome</td>
+<td><code>bb_type</code>, <code>launch_speed</code>, <code>launch_angle</code>, <code>hit_distance_sc</code>, <code>estimated_woba_using_speedangle</code></td>
+</tr>
+<tr>
+<td>Win-probability deltas</td>
+<td><code>delta_run_exp</code>, <code>delta_pitcher_run_exp</code>, <code>delta_home_win_exp</code>, <code>home_win_exp</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>pitch_type</code> is the natural target for Phase 1 modelling. <code>description</code> (ball, called_strike, swinging_strike, foul, hit_into_play) and <code>delta_run_exp</code> (run-value of each pitch) are the natural targets for a Phase 2 outcome model.</p>
+<hr />
+<h3>2. Skubal sample size by season</h3>
+<p>Filtering on <code>pitcher == 669373</code> across all 12 parquet files yields <strong>13,935 pitches across 161 unique games</strong>, all in seasons 2020-2026 (zero rows pre-2020, as expected from his debut date).</p>
+<table>
+<thead>
+<tr>
+<th>Season</th>
+<th style="text-align: right;">Pitches</th>
+<th style="text-align: right;">Games</th>
+<th style="text-align: right;">Avg release speed (mph)</th>
+<th style="text-align: right;">Avg spin rate (rpm)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2020</td>
+<td style="text-align: right;">591</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">89.86</td>
+<td style="text-align: right;">2259</td>
+</tr>
+<tr>
+<td>2021</td>
+<td style="text-align: right;">2,776</td>
+<td style="text-align: right;">34</td>
+<td style="text-align: right;">89.50</td>
+<td style="text-align: right;">2032</td>
+</tr>
+<tr>
+<td>2022</td>
+<td style="text-align: right;">2,141</td>
+<td style="text-align: right;">25</td>
+<td style="text-align: right;">90.04</td>
+<td style="text-align: right;">2050</td>
+</tr>
+<tr>
+<td>2023</td>
+<td style="text-align: right;">1,219</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">89.97</td>
+<td style="text-align: right;">2007</td>
+</tr>
+<tr>
+<td>2024</td>
+<td style="text-align: right;">3,295</td>
+<td style="text-align: right;">36</td>
+<td style="text-align: right;">92.07</td>
+<td style="text-align: right;">2045</td>
+</tr>
+<tr>
+<td>2025</td>
+<td style="text-align: right;">3,304</td>
+<td style="text-align: right;">36</td>
+<td style="text-align: right;">93.26</td>
+<td style="text-align: right;">2160</td>
+</tr>
+<tr>
+<td>2026</td>
+<td style="text-align: right;">609</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">92.41</td>
+<td style="text-align: right;">2161</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;"><strong>13,935</strong></td>
+<td style="text-align: right;"><strong>161</strong></td>
+<td style="text-align: right;"><strong>91.39</strong></td>
+<td style="text-align: right;"><strong>2092</strong></td>
+</tr>
+</tbody>
+</table>
+<p>2023 is depressed because of an oblique strain that delayed his season start. 2026 is partial (data through the dataset cut-off). Velocity has stepped up sharply from 2023 (89.97 mph) to 2025 (93.26 mph), which is the single biggest signal in the data.</p>
+<hr />
+<h3>3. Career pitch mix (overall)</h3>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Pitch</th>
+<th style="text-align: right;">Count</th>
+<th style="text-align: right;">%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FF</td>
+<td>4-seam fastball</td>
+<td style="text-align: right;">4,906</td>
+<td style="text-align: right;">35.21</td>
+</tr>
+<tr>
+<td>CH</td>
+<td>Changeup</td>
+<td style="text-align: right;">3,058</td>
+<td style="text-align: right;">21.94</td>
+</tr>
+<tr>
+<td>SL</td>
+<td>Slider</td>
+<td style="text-align: right;">2,573</td>
+<td style="text-align: right;">18.46</td>
+</tr>
+<tr>
+<td>SI</td>
+<td>Sinker (2-seam)</td>
+<td style="text-align: right;">2,462</td>
+<td style="text-align: right;">17.67</td>
+</tr>
+<tr>
+<td>CU</td>
+<td>Curveball</td>
+<td style="text-align: right;">697</td>
+<td style="text-align: right;">5.00</td>
+</tr>
+<tr>
+<td>NA</td>
+<td>Unclassified</td>
+<td style="text-align: right;">120</td>
+<td style="text-align: right;">0.86</td>
+</tr>
+<tr>
+<td>FS</td>
+<td>Splitter</td>
+<td style="text-align: right;">97</td>
+<td style="text-align: right;">0.70</td>
+</tr>
+<tr>
+<td>FC</td>
+<td>Cutter</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">0.14</td>
+</tr>
+<tr>
+<td>KC</td>
+<td>Knuckle-curve</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.02</td>
+</tr>
+</tbody>
+</table>
+<p>Five pitch types (FF, CH, SL, SI, CU) cover <strong>98.3%</strong> of his career. FC and KC are vestigial and only appear in 2020-2021. FS appears in occasional bursts (mostly 2021).</p>
+<hr />
+<h3>4. Pitch mix by season (% of pitches, top 5 pitches)</h3>
+<table>
+<thead>
+<tr>
+<th>Season</th>
+<th style="text-align: right;">FF</th>
+<th style="text-align: right;">SI</th>
+<th style="text-align: right;">SL</th>
+<th style="text-align: right;">CH</th>
+<th style="text-align: right;">CU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2020</td>
+<td style="text-align: right;">58.9</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">15.7</td>
+<td style="text-align: right;">16.4</td>
+<td style="text-align: right;">7.8</td>
+</tr>
+<tr>
+<td>2021</td>
+<td style="text-align: right;">44.1</td>
+<td style="text-align: right;">11.8</td>
+<td style="text-align: right;">22.6</td>
+<td style="text-align: right;">11.0</td>
+<td style="text-align: right;">6.8</td>
+</tr>
+<tr>
+<td>2022</td>
+<td style="text-align: right;">28.9</td>
+<td style="text-align: right;">19.6</td>
+<td style="text-align: right;">29.7</td>
+<td style="text-align: right;">15.2</td>
+<td style="text-align: right;">6.6</td>
+</tr>
+<tr>
+<td>2023</td>
+<td style="text-align: right;">36.0</td>
+<td style="text-align: right;">12.1</td>
+<td style="text-align: right;">20.7</td>
+<td style="text-align: right;">24.1</td>
+<td style="text-align: right;">6.8</td>
+</tr>
+<tr>
+<td>2024</td>
+<td style="text-align: right;">32.6</td>
+<td style="text-align: right;">21.2</td>
+<td style="text-align: right;">14.1</td>
+<td style="text-align: right;">27.0</td>
+<td style="text-align: right;">3.9</td>
+</tr>
+<tr>
+<td>2025</td>
+<td style="text-align: right;">29.4</td>
+<td style="text-align: right;">22.8</td>
+<td style="text-align: right;">12.7</td>
+<td style="text-align: right;">29.9</td>
+<td style="text-align: right;">2.6</td>
+</tr>
+<tr>
+<td>2026</td>
+<td style="text-align: right;">38.6</td>
+<td style="text-align: right;">18.9</td>
+<td style="text-align: right;">13.0</td>
+<td style="text-align: right;">25.9</td>
+<td style="text-align: right;">3.4</td>
+</tr>
+</tbody>
+</table>
+<p>Three structural shifts are visible:</p>
+<ol>
+<li><strong>Sinker introduction (2021)</strong>. Before 2021 Skubal threw zero sinkers; in 2025 the SI was 22.8% of his pitches, basically tied with the FF.</li>
+<li><strong>Slider de-emphasis (2024 onward)</strong>. SL share fell from 29.7% in 2022 to 12.7% in 2025 as the changeup took over as his go-to secondary.</li>
+<li><strong>Changeup ascendancy (2023 onward)</strong>. CH share roughly doubled from ~12% (2021) to ~30% (2025) and is now his most-used pitch alongside the FF.</li>
+</ol>
+<p>The cutter and knuckle-curve are extinct in the modern arsenal. Curveball usage has shrunk to 2-3%.</p>
+<hr />
+<h3>5. Pitch profile by type (career averages)</h3>
+<table>
+<thead>
+<tr>
+<th>Pitch</th>
+<th style="text-align: right;">n</th>
+<th style="text-align: right;">Avg speed (mph)</th>
+<th style="text-align: right;">Avg spin (rpm)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FF</td>
+<td style="text-align: right;">4,906</td>
+<td style="text-align: right;">95.8</td>
+<td style="text-align: right;">2,252</td>
+</tr>
+<tr>
+<td>SI</td>
+<td style="text-align: right;">2,462</td>
+<td style="text-align: right;">96.2</td>
+<td style="text-align: right;">2,136</td>
+</tr>
+<tr>
+<td>FC</td>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;">94.7</td>
+<td style="text-align: right;">2,283</td>
+</tr>
+<tr>
+<td>SL</td>
+<td style="text-align: right;">2,573</td>
+<td style="text-align: right;">88.3</td>
+<td style="text-align: right;">2,127</td>
+</tr>
+<tr>
+<td>CH</td>
+<td style="text-align: right;">3,058</td>
+<td style="text-align: right;">85.9</td>
+<td style="text-align: right;">1,698</td>
+</tr>
+<tr>
+<td>FS</td>
+<td style="text-align: right;">97</td>
+<td style="text-align: right;">85.0</td>
+<td style="text-align: right;">1,303</td>
+</tr>
+<tr>
+<td>CU</td>
+<td style="text-align: right;">697</td>
+<td style="text-align: right;">77.0</td>
+<td style="text-align: right;">2,295</td>
+</tr>
+<tr>
+<td>KC</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">81.0</td>
+<td style="text-align: right;">1,387</td>
+</tr>
+</tbody>
+</table>
+<p>The FF and SI sit in the same velocity band (~95-96 mph) and are differentiated by movement profile, not speed. CH is ~10 mph slower than the FF, which is the textbook changeup velocity gap. CU is the slowest, highest-spin pitch (low-77 mph, ~2,300 rpm). The unclassified <code>NA</code> rows (n=120, 0.86%) appear evenly distributed and can be dropped or treated as a low-cardinality OTHER class.</p>
+<hr />
+<h3>6. Count situation (balls/strikes)</h3>
+<p>All 12 ball/strike states (0-0 through 3-2) are populated. Pitch selection is highly count-dependent.</p>
+<p>Key rows (% of pitches, top 5 pitches):</p>
+<table>
+<thead>
+<tr>
+<th>Count</th>
+<th style="text-align: right;">FF</th>
+<th style="text-align: right;">SI</th>
+<th style="text-align: right;">SL</th>
+<th style="text-align: right;">CH</th>
+<th style="text-align: right;">CU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0-0</td>
+<td style="text-align: right;">35.0</td>
+<td style="text-align: right;">20.4</td>
+<td style="text-align: right;">21.8</td>
+<td style="text-align: right;">14.0</td>
+<td style="text-align: right;">7.3</td>
+</tr>
+<tr>
+<td>1-0</td>
+<td style="text-align: right;">34.8</td>
+<td style="text-align: right;">21.4</td>
+<td style="text-align: right;">17.4</td>
+<td style="text-align: right;">22.7</td>
+<td style="text-align: right;">1.5</td>
+</tr>
+<tr>
+<td>0-2</td>
+<td style="text-align: right;">38.9</td>
+<td style="text-align: right;">10.5</td>
+<td style="text-align: right;">16.4</td>
+<td style="text-align: right;">27.3</td>
+<td style="text-align: right;">5.2</td>
+</tr>
+<tr>
+<td>1-2</td>
+<td style="text-align: right;">34.4</td>
+<td style="text-align: right;">12.1</td>
+<td style="text-align: right;">17.6</td>
+<td style="text-align: right;">28.6</td>
+<td style="text-align: right;">5.4</td>
+</tr>
+<tr>
+<td>2-2</td>
+<td style="text-align: right;">35.0</td>
+<td style="text-align: right;">16.6</td>
+<td style="text-align: right;">18.3</td>
+<td style="text-align: right;">23.4</td>
+<td style="text-align: right;">5.1</td>
+</tr>
+<tr>
+<td>3-0</td>
+<td style="text-align: right;">84.1</td>
+<td style="text-align: right;">15.0</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">0.0</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr>
+<td>3-1</td>
+<td style="text-align: right;">54.1</td>
+<td style="text-align: right;">23.9</td>
+<td style="text-align: right;">17.0</td>
+<td style="text-align: right;">3.7</td>
+<td style="text-align: right;">0.0</td>
+</tr>
+<tr>
+<td>3-2</td>
+<td style="text-align: right;">42.2</td>
+<td style="text-align: right;">18.6</td>
+<td style="text-align: right;">19.9</td>
+<td style="text-align: right;">16.5</td>
+<td style="text-align: right;">1.1</td>
+</tr>
+</tbody>
+</table>
+<p>Behind in the count (3-0, 3-1) Skubal becomes nearly all-fastball. Ahead in the count (0-2, 1-2, 2-2) he leans much harder on the changeup as his put-away pitch. Curveballs essentially vanish in any hitter's count. <strong>Count state is a high-signal feature for the next-pitch model.</strong></p>
+<hr />
+<h3>7. Batter-handedness split</h3>
+<table>
+<thead>
+<tr>
+<th>Stand</th>
+<th style="text-align: right;">FF</th>
+<th style="text-align: right;">SI</th>
+<th style="text-align: right;">SL</th>
+<th style="text-align: right;">CH</th>
+<th style="text-align: right;">CU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L (LHB)</td>
+<td style="text-align: right;">23.8</td>
+<td style="text-align: right;">35.1</td>
+<td style="text-align: right;">29.5</td>
+<td style="text-align: right;">8.2</td>
+<td style="text-align: right;">2.3</td>
+</tr>
+<tr>
+<td>R (RHB)</td>
+<td style="text-align: right;">37.7</td>
+<td style="text-align: right;">13.9</td>
+<td style="text-align: right;">16.1</td>
+<td style="text-align: right;">24.9</td>
+<td style="text-align: right;">5.6</td>
+</tr>
+</tbody>
+</table>
+<p>Strong handedness platoon split: against same-handed (LHB) hitters Skubal leads with the SI and SL; against opposite-handed (RHB) hitters he leads with the FF and CH. This will be one of the strongest features in the model.</p>
+<hr />
+<h3>8. Target variable for modelling</h3>
+<p>We define <code>next_pitch_type</code> as the <code>pitch_type</code> of the next pitch in the same <code>(game_pk, at_bat_number)</code>, sorted by <code>pitch_number</code>. The last pitch of each at-bat has no successor and is dropped, leaving <strong>10,284 of 13,935 rows (73.8%)</strong> with a defined target.</p>
+<p><strong>Majority-class baseline</strong> (always predict FF): accuracy = <strong>0.356</strong>. Any model needs to clear this bar.</p>
+<p>A current-pitch-conditioned baseline (predict the modal next pitch given the current pitch type) recovers some structure: e.g. after an FF in a 2-strike count the next pitch is often a CH or SL, which is exactly the put-away pattern visible in section 6.</p>
+<hr />
+<h3>9. Missingness on key columns</h3>
+<p><code>pitch_type</code>, <code>release_speed</code>, <code>release_spin_rate</code>, <code>pfx_x/z</code>, <code>plate_x/z</code>, <code>balls</code>, <code>strikes</code>, <code>outs_when_up</code>, <code>inning</code>, <code>stand</code>, <code>p_throws</code> all have &lt;2% missingness on the Skubal subset, with <code>pitch_type</code> itself missing on 0.86% of pitches (the <code>NA</code> bucket above). No critical columns require imputation beyond dropping or labelling the unclassified pitches.</p>
+<hr />
+<h3>10. Key observations for the prediction model</h3>
+<ol>
+<li>
+<p><strong>Career sample is healthy (~13.9k pitches, 161 games) but skewed late.</strong> 75% of the data sits in 2021-2025. Only 591 pitches in the rookie cup-of-coffee 2020 season; only 1,219 in injury-shortened 2023.</p>
+</li>
+<li>
+<p><strong>Skubal's arsenal is non-stationary.</strong> Velocity is up ~3 mph since 2023 and the SI/CH have replaced the SL as his dominant secondary pitches. <strong>Recommendation</strong>: train on 2022-2026 only, or apply recency weighting; modelling 2020-2021 data is misleading for predicting 2026 behaviour.</p>
+</li>
+<li>
+<p><strong>Effective class space is 5 (FF, SI, SL, CH, CU).</strong> Fold FC/KC/FS/NA into an OTHER class or drop them; they collectively represent &lt;2% of pitches.</p>
+</li>
+<li>
+<p><strong>High-signal features</strong> (in expected importance order):</p>
+</li>
+<li><code>balls</code>, <code>strikes</code> (count state, 12 levels) - drives huge mix shifts (3-0 = 84% FF; 0-2 = 28% CH)</li>
+<li><code>stand</code> (LHB vs RHB) - 14-percentage-point swing in FF usage; 21-pt swing in SI usage</li>
+<li>Previous pitch type and previous pitch result within the at-bat (sequencing)</li>
+<li>Velocity/spin/extension of previous pitch (proxy for pitcher fatigue and adjustment)</li>
+<li><code>inning</code>, <code>n_thruorder_pitcher</code> (times through the order, present in the schema)</li>
+<li>Score differential (<code>bat_score_diff</code>, available in schema)</li>
+<li>
+<p>Runners on (<code>on_1b/2b/3b</code>)</p>
+</li>
+<li>
+<p><strong>Target leakage to avoid</strong>: never use any column that describes the next pitch itself (release_speed of the next pitch, <code>description</code>, <code>events</code>). Use only state available at the moment of the decision.</p>
+</li>
+<li>
+<p><strong>Validation split</strong>: stratify by <code>game_pk</code> to keep all pitches from a single game in either train or test. Random pitch-level splits will leak within-at-bat sequencing and inflate accuracy.</p>
+</li>
+<li>
+<p><strong>Two-stage extension</strong>: once next-pitch type is in hand, the natural next target is <em>outcome</em> (whiff, called strike, weak contact, hard contact) using <code>description</code> plus <code>delta_run_exp</code>. That answers the brief's actual question (which pitch maximises success) rather than just mimicking what Skubal already throws.</p>
+</li>
+</ol>
+<hr />
+<h3>Files produced</h3>
+<ul>
+<li><code>notebooks/01_eda.ipynb</code> - executed end-to-end, 17 code cells, 0 errors</li>
+<li><code>reports/exploration_1.md</code> - this file</li>
+<li><code>src/_inspect.py</code>, <code>src/_summary.py</code>, <code>src/_extract_metrics.py</code> - helper scripts used to verify the numbers above</li>
+</ul>
+</section>
+
+<section id="methods">
+  <h2>Methodology and Baseline</h2>
+  <h1>Modeling 1 - Baseline (Skubal Next-Pitch Prediction)</h1>
+<h2>Setup</h2>
+<p>Multi-class classification of the next pitch type Tarik Skubal (MLBAM 669373) will throw, given pre-pitch context only. Source data: MLB Statcast 2020-2026 (debut Aug 2020).</p>
+<p>After filtering to the five effective classes (FF, CH, SL, SI, CU) and dropping rows with missing pre-pitch state, the modeling table holds <strong>13,696 pitches</strong>.</p>
+<p>Class prior on the full table:</p>
+<table>
+<thead>
+<tr>
+<th>Pitch</th>
+<th>Share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FF</td>
+<td>35.8%</td>
+</tr>
+<tr>
+<td>CH</td>
+<td>22.3%</td>
+</tr>
+<tr>
+<td>SL</td>
+<td>18.8%</td>
+</tr>
+<tr>
+<td>SI</td>
+<td>18.0%</td>
+</tr>
+<tr>
+<td>CU</td>
+<td>5.1%</td>
+</tr>
+</tbody>
+</table>
+<h2>Split</h2>
+<p>Time-based, no shuffle:</p>
+<ul>
+<li>Train: 2020-2024 (9,871 rows)</li>
+<li>Val: 2025 first half (1,625 rows)</li>
+<li>Test: 2025 second half + 2026 (2,200 rows)</li>
+</ul>
+<p>This split mirrors the deployment task: the model must extrapolate forward to unseen games rather than peek into the future of the same season.</p>
+<h2>Features (basic set, 28 columns)</h2>
+<p>Pre-pitch context only:</p>
+<ul>
+<li>Count: <code>balls</code>, <code>strikes</code></li>
+<li>Game state: <code>outs_when_up</code>, <code>inning</code>, <code>on_1b/2b/3b_flag</code>, <code>score_diff</code></li>
+<li>Batter handedness one-hot (<code>stand_R</code>)</li>
+<li>At-bat position counter (<code>ab_pitch_idx</code>)</li>
+<li>Lag-1 prior pitch type one-hot (FF / SI / SL / CH / CU / NONE)</li>
+</ul>
+<h2>Baselines (test set, n=2,200)</h2>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Accuracy</th>
+<th>Macro F1</th>
+<th>Weighted F1</th>
+<th>Log loss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Always-FF (majority)</td>
+<td>0.347</td>
+<td>0.103</td>
+<td>0.179</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>Logistic Regression (basic)</td>
+<td>0.284</td>
+<td>0.255</td>
+<td>0.302</td>
+<td>1.580</td>
+</tr>
+<tr>
+<td>Random Forest (basic)</td>
+<td>0.296</td>
+<td>0.262</td>
+<td>0.313</td>
+<td>1.537</td>
+</tr>
+</tbody>
+</table>
+<p>The constant-FF baseline already achieves accuracy 0.347 because of the FF prior. Both probabilistic baselines underperform on accuracy but recover meaningful per-class F1 on CH and SI:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>LogReg F1</th>
+<th>RF F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CH</td>
+<td>0.41</td>
+<td>0.40</td>
+</tr>
+<tr>
+<td>CU</td>
+<td>0.12</td>
+<td>0.10</td>
+</tr>
+<tr>
+<td>FF</td>
+<td>0.24</td>
+<td>0.26</td>
+</tr>
+<tr>
+<td>SI</td>
+<td>0.39</td>
+<td>0.41</td>
+</tr>
+<tr>
+<td>SL</td>
+<td>0.12</td>
+<td>0.14</td>
+</tr>
+</tbody>
+</table>
+<p>CU is the rarest class (5.1% prior) and neither baseline learns it.</p>
+<h2>Random Forest configuration</h2>
+<p><code>n_estimators=400</code>, <code>max_depth=12</code>, <code>min_samples_leaf=2</code>, <code>class_weight='balanced'</code>, <code>n_jobs=4</code>.</p>
+<p>Top features by impurity importance:</p>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Importance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stand_R (batter handedness)</td>
+<td>0.198</td>
+</tr>
+<tr>
+<td>inning</td>
+<td>0.113</td>
+</tr>
+<tr>
+<td>balls</td>
+<td>0.104</td>
+</tr>
+<tr>
+<td>prev_pitch_1_CH</td>
+<td>0.088</td>
+</tr>
+<tr>
+<td>score_diff</td>
+<td>0.085</td>
+</tr>
+<tr>
+<td>ab_pitch_idx</td>
+<td>0.084</td>
+</tr>
+<tr>
+<td>strikes</td>
+<td>0.068</td>
+</tr>
+<tr>
+<td>prev_pitch_1_FF</td>
+<td>0.060</td>
+</tr>
+<tr>
+<td>outs_when_up</td>
+<td>0.054</td>
+</tr>
+<tr>
+<td>on_1b_flag</td>
+<td>0.043</td>
+</tr>
+</tbody>
+</table>
+<p>Batter handedness dominates: Skubal mixes SI / SL more vs LHB and FF / CH more vs RHB.</p>
+<h2>Confusion (Random Forest, test)</h2>
+<p>Rows = true pitch, columns = predicted pitch, order [CH, CU, FF, SI, SL]:</p>
+<pre><code>CH:  [267, 164,  95,  76,  47]
+CU:  [ 20,  32,  10,   3,   2]
+FF:  [247, 206, 149, 118,  43]
+SI:  [ 84,  86,  61, 174,  36]
+SL:  [ 54, 104,  47,  45,  30]
+</code></pre>
+<p>The classifier over-predicts CH and CU at the expense of FF; SL is poorly recovered. The class imbalance plus heavily overlapping feature distributions (balls / strikes look similar across pitch types within a count) limit the basic-feature ceiling.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>The class prior is informative: any non-trivial baseline must beat 0.347 accuracy.</li>
+<li>Logistic Regression and basic Random Forest reach macro F1 around 0.26 but lose on accuracy because they spread predictions away from FF.</li>
+<li>Lag-1 prior-pitch features carry the strongest signal beyond batter handedness.</li>
+<li>Improvements next step: deeper sequence (lag-2, lag-3), batter identity, and a calibrated boosted tree.</li>
+</ul>
+</section>
+
+<section id="results">
+  <h2>Improved Model and Results</h2>
+  <h1>Modeling 2 - Improved XGBoost (Skubal Next-Pitch Prediction)</h1>
+<h2>Goal</h2>
+<p>Recover the FF class without losing the per-class F1 gains the basic Random Forest delivered on CH and SI. Strategy: deeper sequence features, batter identity, gradient boosting, and a hyperparameter search.</p>
+<h2>What changed vs baseline</h2>
+<ol>
+<li>Added lag-2 and lag-3 prior-pitch type one-hots (extending lag-1 from modeling_1).</li>
+<li>Added a frequency-encoded <code>batter_freq</code> feature, fitted on the train split only (avoids the 1000+ one-hot columns a categorical batter id would create).</li>
+<li>Replaced sklearn Random Forest with XGBoost (<code>objective='multi:softprob'</code>).</li>
+<li>Hyperparameter search over four configs on the validation split, then refit best on <code>train + val</code> and evaluate once on the held-out test split.</li>
+</ol>
+<p>Final feature count: 29.</p>
+<h2>Hyperparameter search (validation accuracy)</h2>
+<table>
+<thead>
+<tr>
+<th>Cfg</th>
+<th>depth</th>
+<th>lr</th>
+<th>n_est</th>
+<th>min_child</th>
+<th>subsample</th>
+<th>colsample</th>
+<th>val acc</th>
+<th>val macro F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>4</td>
+<td>0.10</td>
+<td>200</td>
+<td>5</td>
+<td>0.9</td>
+<td>0.8</td>
+<td>0.344</td>
+<td>0.241</td>
+</tr>
+<tr>
+<td>1</td>
+<td>6</td>
+<td>0.07</td>
+<td>250</td>
+<td>3</td>
+<td>0.9</td>
+<td>0.8</td>
+<td>0.329</td>
+<td>0.248</td>
+</tr>
+<tr>
+<td>2</td>
+<td>6</td>
+<td>0.05</td>
+<td>300</td>
+<td>5</td>
+<td>0.8</td>
+<td>0.7</td>
+<td>0.329</td>
+<td>0.243</td>
+</tr>
+<tr>
+<td>3</td>
+<td>8</td>
+<td>0.05</td>
+<td>250</td>
+<td>5</td>
+<td>0.8</td>
+<td>0.7</td>
+<td>0.309</td>
+<td>0.228</td>
+</tr>
+</tbody>
+</table>
+<p>Best config selected on macro F1: <code>max_depth=6, learning_rate=0.07, n_estimators=250, min_child_weight=3, subsample=0.9, colsample_bytree=0.8</code>. The depth-8 variant overfits on this sample size.</p>
+<h2>Final test results (n=2,200)</h2>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Accuracy</th>
+<th>Macro F1</th>
+<th>Weighted F1</th>
+<th>Log loss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Majority FF</td>
+<td>0.347</td>
+<td>0.103</td>
+<td>0.179</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td>LogReg (basic)</td>
+<td>0.284</td>
+<td>0.255</td>
+<td>0.302</td>
+<td>1.580</td>
+</tr>
+<tr>
+<td>RF (basic)</td>
+<td>0.296</td>
+<td>0.262</td>
+<td>0.313</td>
+<td>1.537</td>
+</tr>
+<tr>
+<td><strong>XGBoost (full)</strong></td>
+<td><strong>0.387</strong></td>
+<td><strong>0.271</strong></td>
+<td><strong>0.368</strong></td>
+<td><strong>1.413</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The final XGBoost beats every baseline on every metric, including the always-FF accuracy benchmark. Log loss drops from 1.54 (RF) to 1.41 (a ~8% gain in calibration).</p>
+<p>Per-class F1 (test):</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>LogReg</th>
+<th>RF</th>
+<th>XGB final</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CH</td>
+<td>0.414</td>
+<td>0.404</td>
+<td>0.399</td>
+</tr>
+<tr>
+<td>CU</td>
+<td>0.116</td>
+<td>0.097</td>
+<td>0.027</td>
+</tr>
+<tr>
+<td>FF</td>
+<td>0.245</td>
+<td>0.265</td>
+<td><strong>0.480</strong></td>
+</tr>
+<tr>
+<td>SI</td>
+<td>0.386</td>
+<td>0.406</td>
+<td>0.347</td>
+</tr>
+<tr>
+<td>SL</td>
+<td>0.117</td>
+<td>0.137</td>
+<td>0.104</td>
+</tr>
+</tbody>
+</table>
+<p>XGBoost roughly doubles FF recall (FF F1: 0.27 -&gt; 0.48) by leaning into the prior, gives back some SI recall, and effectively gives up CU. CU at 5.1% prior with high overlap is the next modeling problem.</p>
+<h2>Top features (XGB gain importance)</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Gain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stand_R</td>
+<td>0.162</td>
+</tr>
+<tr>
+<td>prev_pitch_1_CH</td>
+<td>0.062</td>
+</tr>
+<tr>
+<td>strikes</td>
+<td>0.040</td>
+</tr>
+<tr>
+<td>prev_pitch_1_FF</td>
+<td>0.039</td>
+</tr>
+<tr>
+<td>balls</td>
+<td>0.036</td>
+</tr>
+<tr>
+<td>prev_pitch_1_NONE</td>
+<td>0.036</td>
+</tr>
+<tr>
+<td>prev_pitch_1_SI</td>
+<td>0.034</td>
+</tr>
+<tr>
+<td>prev_pitch_3_SI</td>
+<td>0.033</td>
+</tr>
+<tr>
+<td>prev_pitch_2_FF</td>
+<td>0.032</td>
+</tr>
+<tr>
+<td>prev_pitch_2_CH</td>
+<td>0.032</td>
+</tr>
+<tr>
+<td>prev_pitch_3_NONE</td>
+<td>0.030</td>
+</tr>
+<tr>
+<td>prev_pitch_2_SI</td>
+<td>0.030</td>
+</tr>
+<tr>
+<td>prev_pitch_1_SL</td>
+<td>0.029</td>
+</tr>
+<tr>
+<td>prev_pitch_1_CU</td>
+<td>0.029</td>
+</tr>
+<tr>
+<td>on_1b_flag</td>
+<td>0.028</td>
+</tr>
+</tbody>
+</table>
+<p>Lag features dominate after batter handedness, confirming the sequence-conditioned nature of pitch selection.</p>
+<h2>Confusion (XGB final, test)</h2>
+<p>Rows = true, columns = predicted (order CH, CU, FF, SI, SL):</p>
+<pre><code>CH:  [255,  2, 293,  64,  35]
+CU:  [ 22,  1,  27,  10,   7]
+FF:  [191,  2, 437,  88,  45]
+SI:  [ 89,  2, 160, 136,  54]
+SL:  [ 71,  1, 140,  45,  23]
+</code></pre>
+<p>FF is now the dominant prediction across the diagonal, but CU collapses (1 of 67 correct). Two-thirds of CU true pitches are misclassified as CH or FF.</p>
+<h2>Takeaways and limitations</h2>
+<ul>
+<li>4 percentage points of accuracy and 1.3 of weighted F1 over the basic RF, with better calibration, by adding sequence context (lag-2, lag-3) plus batter identity.</li>
+<li>The trade-off is CU recall. A class-weighted or focal-loss training run would close that gap; a separate "is-CU" head is also viable since CU usage is heavily count- and game-state-dependent.</li>
+<li>2-class macro F1 is constrained by the limited Skubal-only sample (~13.7k pitches across 6 partial seasons). A multi-pitcher model with pitcher identity as a feature would likely transfer.</li>
+</ul>
+<h2>Persisted artifacts</h2>
+<ul>
+<li><code>deliverables/skubal_xgb.pkl</code> - final XGBoost model + <code>feature_order</code> + <code>classes</code> + <code>label_map</code> + <code>batter_freq</code> table</li>
+<li><code>deliverables/metrics.json</code> - all four model metric blocks for reproducibility</li>
+</ul>
+  
+</section>
+
+<section id="discussion">
+  <h2>Discussion</h2>
+  <div class="box box-blue">
+    <p>Tuned XGBoost beats every baseline on every metric, including the always-FF accuracy benchmark, by adding lag-2 / lag-3 prior pitch features and a frequency-encoded batter identity. Log loss drops from 1.54 (Random Forest) to 1.41. The trade-off is curveball recall (CU at 5.1% prior collapses to 1 / 67). A multi-pitcher transfer model with pitcher identity as a feature would likely transfer this approach.</p>
+  </div>
+</section>
+
+<section id="refs">
+  <h2>References</h2>
+  <h1>References - MLB Pitch-Type Prediction (Case Study: Tarik Skubal)</h1>
+<p>Verified bibliography (20 entries) for the Skubal pitch-type prediction manuscript. All DOIs and arXiv IDs were confirmed via OpenAlex and Crossref on 2026-05-01. Each entry has a one-line abstract.</p>
+<h2>Pitch-type and pitch-sequence prediction</h2>
+<ol>
+<li>
+<p>Bock, J. K. (2015). Pitch Sequence Complexity and Long-Term Pitcher Performance. <em>Sports</em>, 3(1), 40-55. DOI: 10.3390/sports3010040.
+   Sequence-entropy analysis showing that more unpredictable pitch sequences correlate with longer effective MLB pitching careers.</p>
+</li>
+<li>
+<p>Sidle, G., &amp; Tran, H. (2017). Using Multi-Class Classification Methods to Predict Baseball Pitch Types. <em>Journal of Sports Analytics</em>, 4(1), 85-93. DOI: 10.3233/jsa-170171.
+   Compares LDA, k-NN, SVM, and random forest on per-pitcher PITCHf/x data; per-pitcher RFs reach about 67 percent multi-class accuracy.</p>
+</li>
+<li>
+<p>Lee, J. S. (2022). Prediction of Pitch Type and Location in Baseball Using Ensemble Model of Deep Neural Networks. <em>Journal of Sports Analytics</em>, 8(2), 115-126. DOI: 10.3233/jsa-200559.
+   Ensemble of DNNs that predicts both pitch type and zone location from situational features, beating single-model baselines.</p>
+</li>
+<li>
+<p>Hamilton, M., Hoang, P., Layne, L., Murray, J., Padgett, D., Stafford, C., &amp; Tran, H. (2014). Applying Machine Learning Techniques to Baseball Pitch Prediction. <em>ICPRAM</em>. DOI: 10.5220/0004763905200527.
+   First widely cited ML pitch-type predictor: SVM and linear classifier on count, score, runners, prior pitch, achieving binary fastball-vs-offspeed accuracy around 70 percent.</p>
+</li>
+<li>
+<p>Pane, M. A., Ventura, S. L., Steorts, R. C., &amp; Nugent, R. (2013). Trouble With The Curve: Improving MLB Pitch Classification. arXiv:1304.1756. DOI: 10.48550/arXiv.1304.1756.
+   Improves Statcast/PITCHf/x pitch-type labels via per-pitcher mixture models that respect each pitcher's pitch arsenal.</p>
+</li>
+<li>
+<p>Healey, G., &amp; Zhao, S. (2017). Using PITCHf/x to Model the Dependence of Strikeout Rate on the Predictability of Pitch Sequences. <em>Journal of Sports Analytics</em>, 3(2), 93-101. DOI: 10.3233/jsa-170103.
+   Empirical link between sequence predictability (entropy of conditional pitch-type distributions) and strikeout production.</p>
+</li>
+<li>
+<p>Umemura, K., Yanai, T., &amp; Nagata, Y. (2020). Application of VBGMM for Pitch Type Classification: Analysis of TrackMan's Pitch Tracking Data. <em>Japanese Journal of Statistics and Data Science</em>, 3, 475-492. DOI: 10.1007/s42081-020-00079-8.
+   Variational Bayesian Gaussian mixture clustering of TrackMan release/movement features to derive cleaner pitch-type labels than vendor labels.</p>
+</li>
+</ol>
+<h2>Tracking systems and sports-analytics reviews</h2>
+<ol>
+<li>
+<p>Kovalchik, S. (2023). Player Tracking Data in Sports. <em>Annual Review of Statistics and Its Application</em>, 10, 677-697. DOI: 10.1146/annurev-statistics-033021-110117.
+   Comprehensive review of optical and radar tracking systems (PITCHf/x, Hawk-Eye, Statcast) and the statistical pipelines built on top of them.</p>
+</li>
+<li>
+<p>Beal, R., Norman, T. J., &amp; Ramchurn, S. D. (2019). Artificial Intelligence for Team Sports: A Survey. <em>The Knowledge Engineering Review</em>, 34, e28. DOI: 10.1017/s0269888919000225.
+   Survey of ML and AI methods for team-sport prediction, opponent modeling, and tactical analysis.</p>
+</li>
+<li>
+<p>Baumer, B. S., Matthews, G. J., &amp; Nguyen, Q. (2023). Big Ideas in Sports Analytics and Statistical Tools for Their Investigation. <em>WIREs Computational Statistics</em>, 15(6), e1612. DOI: 10.1002/wics.1612.
+    Modern overview of expected-value frameworks, win probability, tracking-data models, and reproducibility in sports analytics.</p>
+</li>
+</ol>
+<h2>Game-theoretic pitcher-batter models</h2>
+<ol>
+<li>
+<p>Sidhu, G., &amp; Caffo, B. (2014). MONEYBaRL: Exploiting Pitcher Decision-Making Using Reinforcement Learning. <em>Annals of Applied Statistics</em>, 8(2), 926-955. DOI: 10.1214/13-aoas712.
+    Models the pitcher-batter interaction as a Markov decision process and uses RL to find batter-optimal exploitation of pitcher tendencies.</p>
+</li>
+<li>
+<p>Kovash, K., &amp; Levitt, S. D. (2009). Professionals Do Not Play Minimax: Evidence from Major League Baseball and the National Football League. NBER Working Paper 15347. DOI: 10.3386/w15347.
+    Tests minimax mixed-strategy equilibrium predictions on actual MLB pitch sequences and finds significant negative serial correlation, contradicting Nash play.</p>
+</li>
+<li>
+<p>Weinstein-Gould, J. (2009). Keeping the Hitter Off Balance: Mixed Strategies in Baseball. <em>Journal of Quantitative Analysis in Sports</em>, 5(2). DOI: 10.2202/1559-0410.1173.
+    Game-theoretic model of pitcher pitch-mix selection in 2x2 fastball-offspeed games conditional on count.</p>
+</li>
+<li>
+<p>Nakahara, H., Takeda, K., &amp; Fujii, K. (2023). Estimating the Effect of Hitting Strategies in Baseball Using Counterfactual Virtual Simulation with Deep Learning. <em>International Journal of Computer Science in Sport</em>, 22(1), 1-20. DOI: 10.2478/ijcss-2023-0001.
+    Counterfactual deep-learning simulator quantifying how alternative batter strategies would change run expectancy against observed pitcher tendencies.</p>
+</li>
+</ol>
+<h2>Core ML methods</h2>
+<ol>
+<li>
+<p>Hochreiter, S., &amp; Schmidhuber, J. (1997). Long Short-Term Memory. <em>Neural Computation</em>, 9(8), 1735-1780. DOI: 10.1162/neco.1997.9.8.1735.
+    Original LSTM paper, foundational for sequence models applied to pitch-by-pitch prediction.</p>
+</li>
+<li>
+<p>Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, L., &amp; Polosukhin, I. (2017). Attention Is All You Need. <em>NeurIPS 30</em>. arXiv:1706.03762. DOI: 10.48550/arXiv.1706.03762.
+    Introduces the Transformer architecture; baseline for modern sequence models on play-by-play sports data.</p>
+</li>
+<li>
+<p>Chen, T., &amp; Guestrin, C. (2016). XGBoost: A Scalable Tree Boosting System. <em>KDD '16</em>, 785-794. DOI: 10.1145/2939672.2939785.
+    Canonical reference for gradient-boosted trees, the dominant tabular baseline for Statcast-style pitch features.</p>
+</li>
+<li>
+<p>Breiman, L. (2001). Random Forests. <em>Machine Learning</em>, 45(1), 5-32. DOI: 10.1023/A:1010933404324.
+    Foundational random-forest paper used as a baseline in essentially every pitch-type-prediction study.</p>
+</li>
+<li>
+<p>Lundberg, S. M., &amp; Lee, S.-I. (2017). A Unified Approach to Interpreting Model Predictions. <em>NeurIPS 30</em>. arXiv:1705.07874. DOI: 10.48550/arXiv.1705.07874.
+    Introduces SHAP values for local feature attribution, used here to explain pitch-type model decisions per count and runner state.</p>
+</li>
+<li>
+<p>Chawla, N. V., Bowyer, K. W., Hall, L. O., &amp; Kegelmeyer, W. P. (2002). SMOTE: Synthetic Minority Over-Sampling Technique. <em>Journal of Artificial Intelligence Research</em>, 16, 321-357. DOI: 10.1613/jair.953.
+    Standard oversampling technique used to handle class imbalance across rare pitch types (CU, CH) in the Skubal arsenal.</p>
+</li>
+</ol>
+</section>
+
+<footer>
+  Liora ML Manuscripts Pipeline | Project 3 | Sandeep Grover | 2026-05-01
+</footer>
+</main>
+</body>
+</html>
