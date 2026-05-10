@@ -80,7 +80,7 @@ python src/_extract_metrics.py
 
 ## Author
 
-**Dr. Sandeep Grover** — PhD Data Science, independent ML researcher, Mössingen, Germany.
+**Dr. Sandeep Grover** — PhD Data Science, independent ML researcher, Germany.
 
 ---
 
