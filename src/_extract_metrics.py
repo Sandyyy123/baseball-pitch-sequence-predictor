@@ -2,7 +2,7 @@
 import os, glob, json
 import pandas as pd
 
-DATA = '/root/AI/project_root/data'
+DATA = 'data/'
 SKUBAL_ID = 669373
 
 frames = []
