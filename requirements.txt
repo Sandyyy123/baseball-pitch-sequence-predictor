@@ -1,1 +1,11 @@
-pandas
+pandas>=1.5
+numpy>=1.23
+scikit-learn>=1.2
+xgboost>=1.7
+lightgbm>=3.3
+shap>=0.41
+optuna>=3.0
+matplotlib>=3.6
+seaborn>=0.12
+pybaseball>=2.2
+joblib>=1.2
