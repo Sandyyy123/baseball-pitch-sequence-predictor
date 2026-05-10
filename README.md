@@ -1,4 +1,4 @@
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Sports Analytics](https://img.shields.io/badge/Sports-Analytics-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Sports Analytics](https://img.shields.io/badge/Sports-Analytics-blue) ![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-lightgrey)
 
 # MLB Pitch Sequence Prediction — Multi-class Sequence Model
 
