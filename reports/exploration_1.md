@@ -1,4 +1,4 @@
-# Project 3 - What Pitch Should Tarik Skubal Throw?
+# What Pitch Should Tarik Skubal Throw?
 
 ## Exploration Report 1: Data Description and EDA
 
@@ -23,7 +23,7 @@ Each parquet holds every pitch thrown in a regular- or post-season MLB game for 
 | Batted-ball outcome | `bb_type`, `launch_speed`, `launch_angle`, `hit_distance_sc`, `estimated_woba_using_speedangle` |
 | Win-probability deltas | `delta_run_exp`, `delta_pitcher_run_exp`, `delta_home_win_exp`, `home_win_exp` |
 
-`pitch_type` is the natural target for Phase 1 modelling. `description` (ball, called_strike, swinging_strike, foul, hit_into_play) and `delta_run_exp` (run-value of each pitch) are the natural targets for a Phase 2 outcome model.
+`pitch_type` is the natural target for v1.0 modelling. `description` (ball, called_strike, swinging_strike, foul, hit_into_play) and `delta_run_exp` (run-value of each pitch) are the natural targets for a v1.0 outcome model.
 
 ---
 

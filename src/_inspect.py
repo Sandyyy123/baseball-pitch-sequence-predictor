@@ -1,7 +1,7 @@
 import pandas as pd
 import json, sys, os
 
-base = '/root/AI/liora_projects/03_skubal_pitch/data'
+base = '/root/AI/project_root/data'
 df = pd.read_parquet(os.path.join(base, 'statcast_2024.parquet'))
 print('SHAPE', df.shape)
 print('COLS', df.columns.tolist())

@@ -2,7 +2,7 @@
 import os, glob, json
 import pandas as pd
 
-DATA = '/root/AI/liora_projects/03_skubal_pitch/data'
+DATA = '/root/AI/project_root/data'
 SKUBAL_ID = 669373
 
 frames = []
