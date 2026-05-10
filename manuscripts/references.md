@@ -177,5 +177,5 @@ Huang Y. FS-SMOTE: An Improved SMOTE Method Based on Feature Space Scoring Mecha
 
 ---
 
-Total entries: 34, all DOIs resolved live via CrossRef on 2026-05-08. Source query log: `/root/AI/.tmp/lit_03_skubal/`.
+Total entries: 34, all DOIs resolved live via CrossRef on 2026-05-08. Source query log: `[local temp dir]
 
