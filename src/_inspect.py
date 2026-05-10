@@ -1,7 +1,7 @@
 import pandas as pd
 import json, sys, os
 
-base = '/root/AI/project_root/data'
+base = 'data/'
 df = pd.read_parquet(os.path.join(base, 'statcast_2024.parquet'))
 print('SHAPE', df.shape)
 print('COLS', df.columns.tolist())
