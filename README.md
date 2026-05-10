@@ -65,8 +65,9 @@ cd baseball-pitch-sequence-predictor
 pip install -r requirements.txt
 
 # See data/README.md for dataset download
-python src/model_baseline.py  # baseline XGBoost
-python src/model_advanced.py
+jupyter notebook notebooks/03_modeling.ipynb  # baseline XGBoost
+# or run helpers:
+python src/_extract_metrics.py
 ```
 
 ---
