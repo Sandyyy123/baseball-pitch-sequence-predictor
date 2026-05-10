@@ -2,7 +2,7 @@
 import os, json, glob
 import pandas as pd
 
-DATA = '/root/AI/project_root/data'
+DATA = 'data/'
 SKUBAL_ID = 669373
 
 files = sorted(glob.glob(os.path.join(DATA, 'statcast_*.parquet')))
